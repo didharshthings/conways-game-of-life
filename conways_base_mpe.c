@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "mpi.h"
+#include "mpe.h"
 
 //check for np=4,9,25,36
 
@@ -240,73 +241,33 @@ void calc_neighbours(MPI_Comm comm_cart, int rank, int dimx, int dimy, int sourc
 */
   }//calculate neigbours
 
-void update(int iteration) {
-
-  int sum;
-  int *pointer_old = (iteration%2==0)?field_a:field_b;
-  int *pointer_new = (iteration%2==0)?field_b:field_a;
-
-  for (int y = 0; y < local_height; y++)
+  void write_to_file (char *in_file, int iteration, int offset)
   {
-    for (int x = 0; x < local_width; x++)
+    char filename[1000];
+    offset = 0;
+    int a;
+    MPI_Aint extent;
+    MPI_Datatype filetype, contig;
+    MPI_Offset disp;
+    MPI_File fh;
+
+    sprintf(filename, "%d_test_", iteration);
+    strcat(filename, in_file);
+    int header_offset;
+    //write header
+    if (rank == 0)
     {
-      int yb = y+1;
-      int xb = x+1;
-
-      sum  = 0;
-      sum = pointer_old[(yb-1)*field_width+xb+1] + pointer_old[(yb-1)*field_width+xb] + pointer_old[(yb-1)*field_width+xb-1] + pointer_old[(yb)*field_width+xb+1]  +pointer_old[(yb)*field_width+xb-1] +pointer_old[(yb+1)*field_width+xb+1] + pointer_old[(yb+1)*field_width+xb] +pointer_old[(yb+1)*field_width+xb-1];
-
-      //copy previous value
-      pointer_new[yb*field_width+xb] = pointer_old[yb*field_width+xb];
-      if(pointer_old[yb*field_width+xb]) //alive cell
-      {
-        if(sum == 2 || sum == 3)
-        {
-          pointer_new[yb*field_width+xb] = 1;
-        }
-        if(sum < 2 || sum > 3)
-        {
-          pointer_new[yb*field_width+xb] = 0;
-        }
-      }
-      else //dead cell
-      {
-        if(sum == 3)
-        {
-          pointer_new[yb*field_width+xb] = 1;
-        }
-      }
-
+      FILE *fp = fopen( filename, "w+" );
+      header_offset = fprintf( fp, "%s\n%i %i\n%i\n", header, width, height, depth );
+      fclose(fp);
+      offset = header_offset;
     }
-  }
-}
-void write_to_file (char *in_file, int iteration, int offset)
-{
-  char filename[1000];
-  offset = 0;
-  int a;
-  MPI_Aint extent;
-  MPI_Datatype filetype, contig;
-  MPI_Offset disp;
-  MPI_File fh;
 
-  sprintf(filename, "%d_test_", iteration);
-  strcat(filename, in_file);
-  int header_offset;
-  //write header
-  if (rank == 0)
-  {
-    FILE *fp = fopen( filename, "w+" );
-    header_offset = fprintf( fp, "%s\n%i %i\n%i\n", header, width, height, depth );
-    fclose(fp);
-    offset = header_offset;
-  }
+    MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDWR | MPI_MODE_APPEND, MPI_INFO_NULL, &fh);
 
-  MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDWR | MPI_MODE_APPEND, MPI_INFO_NULL, &fh);
+    int *pointer = (iteration%2==0) ? (field_a) : (field_b);
 
-  int *pointer = (iteration%2==0) ? (field_a) : (field_b);
-
-  char *write_buffer=(char *)malloc( local_width * local_height * sizeof(char));
+    char *write_buffer=(char *)malloc( local_width * local_height * sizeof(char));
 
   //fill temp matrix
   for (int y = 1; y < local_height + 1; y++ )
@@ -534,6 +495,8 @@ void measure(int iteration, int count_at)
 
 int main(int argc, char* argv[])
 {
+
+  int sum;
   char input_file[50];
   int distribution; // 0 -slice, 1- checkerboard
   int iterations ;
@@ -542,10 +505,31 @@ int main(int argc, char* argv[])
 
   // Initialize MPI
   MPI_Init(&argc, &argv);
-
+  // MPE stuff
+   MPE_Init_log();
   // Get the communicator and process information
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &np);
+
+  int sync_start = MPE_Log_get_event_number();
+  int sync_end = MPE_Log_get_event_number();
+  int measure_start = MPE_Log_get_event_number();
+  int measure_end = MPE_Log_get_event_number();
+  int write_start = MPE_Log_get_event_number();
+  int write_end = MPE_Log_get_event_number();
+  int update_start = MPE_Log_get_event_number();
+  int update_end = MPE_Log_get_event_number();
+  int neigh_start = MPE_Log_get_event_number();
+  int neigh_start = MPE_Log_get_event_number();
+
+  if(rank == 0)
+  {
+    MPE_Describe_stage(sync_start,sync_end,"sync",red);
+    MPE_Describe_stage(measure_start,measure_end,"measure","green");
+    MPE_Describe_stage(write_start,write_end,"write", "gray");
+    MPE_Describe_stage(update_start,update_end,"update","blue");
+    MPE_Describe_stage(sync_start,sync_end,"calculate neighbours","yellow");
+  }
 
   MPI_Comm comm_cart;
   int dims[2];
@@ -606,7 +590,6 @@ int main(int argc, char* argv[])
 
       my_col = 0;
       my_row = rank;
-      comm_cart = MPI_COMM_WORLD;
     }
 
   else
@@ -624,7 +607,9 @@ int main(int argc, char* argv[])
       dims[1] = ncols;
 
       MPI_Cart_create(MPI_COMM_WORLD,2,dims,periods,1,&comm_cart);
+      MPE_Log_event(neigh_start,0,"start neighbour");
       calc_neighbours(comm_cart,rank, dims[0], dims[1],source_ranks,dest_ranks);
+      MPE_Log_event(neigh_end,0,"end neighbour");
     }
 
   if (np == 1)
@@ -634,9 +619,9 @@ int main(int argc, char* argv[])
       nrows = 1;
       my_col = 0;
       my_row = 0;
-      comm_cart = MPI_COMM_WORLD;
     }
 
+    double start_time,end_time;
   // Read the PGM file. The readpgm() routine reads the PGM file and, based
   // on the previously set nrows, ncols, my_row, and my_col variables, loads
   // just the local part of the field onto the current processor. The
@@ -649,28 +634,81 @@ int main(int argc, char* argv[])
       MPI_Finalize();
       return 1;
     }
-
-    double start_time,end_time;
     MPI_Barrier(comm_cart);
     start_time = MPI_Wtime();
     for (int i = 0; i <= iterations; i++)
     {
       // MEASURE
-      if (count_bugs)    measure(i,count_at);
-
+      if (count_bugs)
+      {
+        MPE_Log_event(measure_start,0,"start measure");
+        measure(i,count_at);
+        MPE_Log_event(measure_end,0,"end measure");
+      }
       if(!distribution) //slice
       {
+        MPE_Log_event(sync_start,0,"start sync");
         sync(i);
+        MPE_Log_event(sync_start,0,"end sync");
       }
       else  //checkerboard
       {
+        MPE_Log_event(sync_start,0,"start sync");
         sync_checkerboard(i,dims,source_ranks,dest_ranks,comm_cart);
+        MPE_Log_event(sync_end,0,"end sync");
       }
 
       //WRITE FILE
-      if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
+      if (i <= write_to && i >= write_from)
+      {
+        MPE_Log_event(write_start,0,"start write");
+        write_to_file(input_file, i, offset);
+        MPE_Log_event(write_end,0,"end write");
+      }
       //UPDATE STATE
-      update(i);
+
+      MPE_Log_event(update_start,0,"start update");
+      int *pointer_old = (i%2==0)?field_a:field_b;
+      int *pointer_new = (i%2==0)?field_b:field_a;
+
+      for (int y = 0; y < local_height; y++)
+      {
+        for (int x = 0; x < local_width; x++)
+        {
+          int yb = y+1;
+          int xb = x+1;
+
+          sum  = 0;
+          sum = pointer_old[(yb-1)*field_width+xb+1] + pointer_old[(yb-1)*field_width+xb] + pointer_old[(yb-1)*field_width+xb-1]
+          +pointer_old[(yb)*field_width+xb+1]  +pointer_old[(yb)*field_width+xb-1] +pointer_old[(yb+1)*field_width+xb+1]
+          + pointer_old[(yb+1)*field_width+xb] +pointer_old[(yb+1)*field_width+xb-1];
+
+          //copy previous value
+          pointer_new[yb*field_width+xb] = pointer_old[yb*field_width+xb];
+
+
+          if(pointer_old[yb*field_width+xb]) //alive cell
+          {
+            if(sum == 2 || sum == 3)
+            {
+              pointer_new[yb*field_width+xb] = 1;
+            }
+            if(sum < 2 || sum > 3)
+            {
+              pointer_new[yb*field_width+xb] = 0;
+            }
+          }
+          else //dead cell
+          {
+            if(sum == 3)
+            {
+              pointer_new[yb*field_width+xb] = 1;
+            }
+          }
+
+        }
+      }
+      MPE_Log_event(update_end,0,"update end");
     }
 
   end_time = MPI_Wtime();

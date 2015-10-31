@@ -55,9 +55,9 @@ int init_pprintf( int my_rank )
 {
     pp_set_banner("init_pprintf");
     pid = my_rank;
-/*
-    pprintf("PID is %d\n", pid);
-*/
+
+//    pprintf("PID is %d\n", pid);
+
     return 0;
 }
 
@@ -90,5 +90,6 @@ int pprintf( char *format, ... )
     printf("%s", output_line);
     fflush(stdout);
     msgcount++;
+
     return 0;
 }

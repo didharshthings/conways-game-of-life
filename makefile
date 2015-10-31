@@ -3,7 +3,7 @@
 ########################################################################### 
 
 CC = mpicc
-CCFLAGS = -g -Wall -std=c99
+CCFLAGS = -pg -g -Wall -std=c99
 ifeq ($(DEBUG),on)
 	CCFLAGS += -DDEBUG
 endif
@@ -22,7 +22,7 @@ O_FILES = conways_base.o pgm.o pprintf.o
 all: conways_base
 
 conways_base: $(O_FILES)
-	$(CC) -o conways_base $(O_FILES) $(LDFLAGS)
+	$(CC) -o conways_base -pg $(O_FILES) $(LDFLAGS)
 
 .PHONY: clean
 clean:		

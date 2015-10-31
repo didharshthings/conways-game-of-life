@@ -5,7 +5,7 @@
 // Michael Oberg, modified from code supplied by Dr. Matthew Woitaszek
 
 // siddharth singh, added logic for the assignment
-// to run: mpirun -n 9 ./conway_base <file_name> <distribution> <iteration> <count_bugs> <count_at> 
+// to run: mpirun -n 9 ./conway_base <file_name> <distribution> <iteration> <count_bugs> <count_at> <write_from> <write_to> 
 // mpirun -n 9 ./conway_base life.pgm 1 100 1 10 (0 for slice, 1 for checkerboard)
 
 
@@ -37,51 +37,40 @@ enum direction //used for checkerboard distribution
 
 void calc_neighbours(MPI_Comm comm_cart, int rank, int dimx, int dimy, int source_ranks[8], int dest_ranks[8])
 {
-
   
   int my_coords[2];
-  int neighbor_coords[2];
+  int n_coords[2];
   int temp_ranks;
   
   MPI_Cart_coords(comm_cart, rank, 2 ,my_coords);
   
   //Up
   MPI_Cart_shift(comm_cart,1,1,&source_ranks[UP],&dest_ranks[DOWN]);
-  //pprintf("rank %i sends up rank %i\n",source_ranks[UP],dest_ranks[UP]);
-  
   //Down
   MPI_Cart_shift(comm_cart,1,-1,&source_ranks[DOWN],&dest_ranks[UP]);
-  //pprintf("rank %i sends down rank %i\n",source_ranks[DOWN],dest_ranks[DOWN]);
-  
   //Right
   MPI_Cart_shift(comm_cart,0,-1,&source_ranks[LEFT],&dest_ranks[RIGHT]);
-  //pprintf("rank %i sends right rank %i\n",source_ranks[LEFT],dest_ranks[LEFT]);
-  
   //Left
   MPI_Cart_shift(comm_cart,0,1,&source_ranks[RIGHT], &dest_ranks[LEFT]);
-  //pprintf("rank %i sends left rank%i \n",source_ranks[RIGHT],dest_ranks[RIGHT]);
-  
-  
-  
-  //Up and Left 
-  neighbor_coords[1] = (my_coords[1] + 1) % dimx;        
-  neighbor_coords[0] = (my_coords[0] - 1 + dimy) % dimy;   
-  MPI_Cart_rank(comm_cart, neighbor_coords, &dest_ranks[UPLEFT]);
+  //upeft 
+  n_coords[1] = (my_coords[1] + 1) % dimx;        
+  n_coords[0] = (my_coords[0] - 1 + dimy) % dimy;   
+  MPI_Cart_rank(comm_cart, n_coords, &dest_ranks[UPLEFT]);
   source_ranks[DOWNRIGHT] = dest_ranks[UPLEFT];
-  // Up and Right 
-  neighbor_coords[1] = (my_coords[1] + 1) % dimx;        
-  neighbor_coords[0] = (my_coords[0] + 1) % dimy;        
-  MPI_Cart_rank(comm_cart, neighbor_coords, &dest_ranks[UPRIGHT]);
+  // upright 
+  n_coords[1] = (my_coords[1] + 1) % dimx;        
+  n_coords[0] = (my_coords[0] + 1) % dimy;        
+  MPI_Cart_rank(comm_cart, n_coords, &dest_ranks[UPRIGHT]);
   source_ranks[DOWNLEFT] = dest_ranks[UPRIGHT];
-  // down left 
-  neighbor_coords[1] = (my_coords[1] -1 + dimx) % dimx;    
-  neighbor_coords[0] = (my_coords[0] - 1 + dimy) % dimy;   
-  MPI_Cart_rank(comm_cart, neighbor_coords, &dest_ranks[DOWNLEFT]);
+  // downleft 
+  n_coords[1] = (my_coords[1] -1 + dimx) % dimx;    
+  n_coords[0] = (my_coords[0] - 1 + dimy) % dimy;   
+  MPI_Cart_rank(comm_cart, n_coords, &dest_ranks[DOWNLEFT]);
   source_ranks[UPRIGHT] = dest_ranks[DOWNLEFT];
-  // down right 
-  neighbor_coords[1] = (my_coords[1] -1 + dimx) % dimx;   
-  neighbor_coords[0] = (my_coords[0] + 1) % dimy;        
-  MPI_Cart_rank(comm_cart, neighbor_coords, &dest_ranks[DOWNRIGHT]);
+  // downright 
+  n_coords[1] = (my_coords[1] -1 + dimx) % dimx;   
+  n_coords[0] = (my_coords[0] + 1) % dimy;        
+  MPI_Cart_rank(comm_cart, n_coords, &dest_ranks[DOWNRIGHT]);
   source_ranks[UPLEFT] = dest_ranks[DOWNRIGHT];
 
   //int my_coords[2];
@@ -254,124 +243,148 @@ if(my_coords[0] == nrows-1 && my_coords[1] == nrows-1)
 
 }//calculate neigbours
 
-void filewrite (char *in_file, int iteration, int offset) {
+void write_to_file (char *in_file, int iteration, int offset) {
   
   char filename[1000];
-  sprintf(filename, "%d_", iteration); 
-  strcat(filename, in_file);
-  
+  offset = 0;
+  int a;
+  MPI_Aint extent;                                      
+  MPI_Datatype filetype, contig;                 
+  MPI_Offset disp;                            
   MPI_File fh;                                          
+  
+  sprintf(filename, "%d_test_", iteration); 
+  strcat(filename, in_file);
+  int header_offset;
+  //write header
+  if (rank == 0)  
+    {   
+      FILE *fp = fopen( filename, "w+" );
+      header_offset = fprintf( fp, "%s\n%i %i\n%i\n", header, width, height, depth );
+      fclose(fp);
+      offset = header_offset;
+    }
+  
   MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_RDWR | MPI_MODE_APPEND, MPI_INFO_NULL, &fh);
-
-
-  int my_rank = rank;  
-  if (my_rank == 0) 
-  {   
-    //FILE *fp = fopen( filename, "w+" );
-    //fprintf( fp, "%6s\n%i %i\n%i\n", header, width, height, depth );
-    //fclose(fp);
-    MPI_File_write(fh,header,offset,MPI_CHAR,MPI_STATUS_IGNORE); 
-  }
   
-  int *field_pointer = (iteration%2==0) ? (field_a) : (field_b);
-
-  char *temp=(char *)malloc( local_width * local_height * sizeof(char));
+  int *pointer = (iteration%2==0) ? (field_a) : (field_b);
   
-  int x, y, b, ll;
-  for (y = 0; y < field_height; y++ ) {             
-    for(x = 0; x < field_width; x++ ) {
-      if ((x != 0) && (y != 0) && (x != field_width - 1) && (y != field_height - 1)) {
-        ll = (y * field_width + x);                     
-        b = field_pointer[ll];
-        b = (b==0)?0xFF:0;                              
-        temp[x-1+(y-1)*local_width] = (char)b;
-      }
+  char *write_buffer=(char *)malloc( local_width * local_height * sizeof(char));
+  
+  //fill temp matrix
+  for (int y = 1; y < local_height + 1; y++ ) 
+  {             
+    for(int x = 1; x < local_width + 1; x++ ) 
+    {                 
+        if (pointer[ y * field_width + x])
+        {
+          a = 0;  
+        }          
+        else
+        {
+          a = 0xFF;
+        }                    
+        write_buffer[x-1+(y-1)*local_width] = (char)a;
     }
   }
-
-  MPI_Aint extent;                                      
-  MPI_Datatype etype, filetype, contig;                 
-  MPI_Offset disp = offset;                             
-
-  // this needs to be added to the displacement so each processor starts reading from
-  // the right point of the file
-  disp += (my_rank / ncols) * width * local_height + (my_rank % ncols) * local_width;
-
-  etype = MPI_CHAR;                                     
-  MPI_Type_contiguous(local_width, etype, &contig);     
+  
+  disp = offset;
+  disp += my_col * width * local_height + (my_row) * local_width;
+                                  
+  MPI_Type_contiguous(local_width, MPI_CHAR, &contig);     
   extent = width * sizeof(char);                        
-  MPI_Type_create_resized(contig, 0, extent, &filetype); 
-  MPI_Type_commit(&filetype);                           
-  // writes the file
-  MPI_File_set_view(fh, disp, etype, filetype, "native", MPI_INFO_NULL);
-  MPI_File_write_all(fh, temp, local_width*local_height, MPI_CHAR, MPI_STATUS_IGNORE);
+   MPI_Type_create_resized(contig, 0, extent, &filetype); 
+   MPI_Type_commit(&filetype);  
+
+  // writes to the file
+   MPI_File_set_view(fh, disp, MPI_CHAR, filetype, "native", MPI_INFO_NULL);
+  MPI_File_write_all(fh, write_buffer, local_width*local_height, MPI_CHAR, MPI_STATUS_IGNORE);
   MPI_File_close(&fh);
 
+  /*
+  int gsizes[2],distribs[2],psizes[2],dargs[2];
+  gsizes[0] = local_height;
+  gsizes[1] = local_width;
+  distribs[0] = MPI_DISTRIBUTE_BLOCK;
+  distribs[1] = MPI_DISTRIBUTE_BLOCK;
+  dargs[0] = MPI_DISTRIBUTE_DFLT_DARG;
+  dargs[1] = MPI_DISTRIBUTE_DFLT_DARG;
+  psizes[0] = sqrt(np);
+  psizes[1] = sqrt(np);
+ 
+  MPI_Type_create_darray(np,rank,2,gsizes,distribs,dargs,psizes,MPI_ORDER_C,MPI_INT,&filetype);
+  MPI_Type_commit(&filetype);
+  MPI_File_set_view(fh, 0, MPI_CHAR, filetype, "native", MPI_INFO_NULL);
+  int local_array_size = local_width*local_height;
+  MPI_File_write_all(fh, write_buffer, local_array_size, MPI_CHAR, MPI_STATUS_IGNORE);
+  MPI_File_close(&fh);
+  */
   
 }
 
 
 void sync_checkerboard(int iteration, int dims[2], int source_rank[8], int dest_rank[8],MPI_Comm comm_cart)
 {
+
+  
+  MPI_Datatype coltype;
+  MPI_Type_vector(local_width, 1, field_height, MPI_INT, &coltype);
+  MPI_Type_commit(&coltype);
   
   int *pointer = (iteration%2==0)?field_a:field_b;        
   
   /*
-    |UL|UP|..... |UR|
-    |LF|........ |RT|
-    .................
-    .................
-    .................
-    .................
-    |DL|DW|......|DR|
+    |GUL|GUP|.......|GUR|
+    |GLF| a |...| b |GRT|
+    .....................
+    .....................
+    .....................
+    ....| c |...| d |....
+    |GDL|GDW|.......|GDR|
     
+    *(array + i*c + j)
   */
-  
-  MPI_Datatype coltype;
-  MPI_Type_vector(local_height, 1, local_width, MPI_INT, &coltype);
-  MPI_Type_commit(&coltype);
 
-  MPI_Datatype rowtype;
-  MPI_Type_vector(local_width, 1, 1, MPI_INT, &rowtype);
-  MPI_Type_commit(&rowtype);
+  int* gul = pointer; //size 1 [0][0]
+  int* gup = pointer + 1; //size local_width [0][1]
+  int* glf = pointer + field_width; //col_type [1][0]
+  int* gdl = pointer + field_width*(field_height - 1); //size 1 [nrows-1][0]
+  int* gdw = pointer + field_width*(field_height - 1) + 1;//local_width [nrows-1][1]
+  int* gdr = pointer + field_width*(field_height-1) + field_width - 1; //size  [nrows-1][ncolumns-1]
+  int* gur = pointer + field_height - 1;//size 1 [0][ncolumns-1]
+  int* grt = pointer + field_width + field_height - 1;//col_type [1][ncolumns-1]
   
-  int* ul = pointer; //size 1
-  int* up = pointer + 1; //size local_width
-  int* lf = pointer + field_width; //col_type
-  int* dl = pointer + field_width*(local_height + 1); //size 1
-  int* dw = pointer + field_width*(local_height + 1) + 1;//local_width
-  int* dr = pointer + field_width*field_height; //size 1
-  int* ur = pointer + local_width + 1;//size 1
-  int* rt = pointer + field_width + local_width + 1;//col_type
-  
-  
+  int* a = pointer + field_width + 1; //[1][1]
+  int* b = pointer + field_width + local_width; //[1][jmax]
+  int* c = pointer + field_width*(local_height) + 1; //[imax][1]
+  int* d = pointer + field_width*(local_height) + local_width;  //[imax][jmax]
 
   MPI_Request reqs[8];
   
-  MPI_Isend(up, 1, rowtype, dest_rank[DOWN], 0, comm_cart,reqs);  
-  MPI_Isend(dw, 1, rowtype, dest_rank[UP], 0, comm_cart,reqs+1);
-  MPI_Isend(rt, 1, coltype, dest_rank[LEFT],0, comm_cart,reqs+2);
-  MPI_Isend(lf, 1, coltype, dest_rank[RIGHT],0, comm_cart,reqs+3);
+  MPI_Isend(a, local_width, MPI_INT, dest_rank[UP], 0, comm_cart,reqs);  
+  MPI_Isend(c, local_width, MPI_INT, dest_rank[DOWN], 0, comm_cart,reqs+1);
+  MPI_Isend(b, 1, coltype, dest_rank[LEFT],0, comm_cart,reqs+2);
+  MPI_Isend(a, 1, coltype, dest_rank[RIGHT],0, comm_cart,reqs+3);
   
-  MPI_Isend(ur, 1, MPI_INT, dest_rank[UPRIGHT], 0, comm_cart,reqs+4);
-  MPI_Isend(dl, 1, MPI_INT, dest_rank[DOWNLEFT], 0, comm_cart,reqs+5);
-  MPI_Isend(dr, 1, MPI_INT, dest_rank[DOWNRIGHT],0, comm_cart,reqs+6);
-  MPI_Isend(ul, 1, MPI_INT, dest_rank[UPLEFT],0, comm_cart,reqs+7);
+  MPI_Isend(b, 1, MPI_INT, dest_rank[DOWNRIGHT], 0, comm_cart,reqs+4);
+  MPI_Isend(c, 1, MPI_INT, dest_rank[UPLEFT], 0, comm_cart,reqs+5);
+  MPI_Isend(d, 1, MPI_INT, dest_rank[UPRIGHT],0, comm_cart,reqs+6);
+  MPI_Isend(a, 1, MPI_INT, dest_rank[DOWNLEFT],0, comm_cart,reqs+7);
   
   
   MPI_Waitall(8,reqs,MPI_STATUS_IGNORE);
   //pprintf("wait done for sending rank \n");
   
   
-  MPI_Irecv(ul,1,MPI_INT, source_rank[DOWNRIGHT],0,comm_cart,reqs);
-  MPI_Irecv(ur,1,MPI_INT, source_rank[DOWNLEFT],0,comm_cart,reqs+1);
-  MPI_Irecv(dl,1,MPI_INT, source_rank[UPRIGHT],0,comm_cart,reqs+2);
-  MPI_Irecv(dr,1,MPI_INT, source_rank[UPLEFT],0,comm_cart,reqs+3);
+  MPI_Irecv(gul,1,MPI_INT, source_rank[UPRIGHT],0,comm_cart,reqs);
+  MPI_Irecv(gur,1,MPI_INT, source_rank[UPLEFT],0,comm_cart,reqs+1);
+  MPI_Irecv(gdl,1,MPI_INT, source_rank[DOWNRIGHT],0,comm_cart,reqs+2);
+  MPI_Irecv(gdr,1,MPI_INT, source_rank[DOWNLEFT],0,comm_cart,reqs+3);
 
-  MPI_Irecv(dw,1,rowtype, source_rank[DOWN],0,comm_cart,reqs+4);
-  MPI_Irecv(up,1,rowtype, source_rank[UP],0,comm_cart,reqs+5);
-  MPI_Irecv(lf,1,coltype, source_rank[LEFT],0,comm_cart,reqs+6);
-  MPI_Irecv(rt,1,coltype, source_rank[RIGHT],0,comm_cart,reqs+7);
+  MPI_Irecv(gdw,local_width,MPI_INT, source_rank[DOWN],0,comm_cart,reqs+4);
+  MPI_Irecv(gup,local_width,MPI_INT, source_rank[UP],0,comm_cart,reqs+5);
+  MPI_Irecv(grt,1,coltype, source_rank[RIGHT],0,comm_cart,reqs+6);
+  MPI_Irecv(glf,1,coltype, source_rank[LEFT],0,comm_cart,reqs+7);
   
   MPI_Waitall(8,reqs,MPI_STATUS_IGNORE);
   //pprintf("wait done for receiving \n");
@@ -608,7 +621,7 @@ int main(int argc, char* argv[])
       if (count_bugs)    measure(i,count_at);
       
       //WRITE FILE
-      filewrite(input_file, i, offset);
+      if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
       //UPDATE STATE
       
       int *pointer_old = (i%2==0)?field_a:field_b;
@@ -620,6 +633,7 @@ int main(int argc, char* argv[])
 	    {
 	      int yb = y+1;
 	      int xb = x+1;
+
 	      sum  = 0;
 	      sum = pointer_old[(yb-1)*field_width+xb+1] + pointer_old[(yb-1)*field_width+xb] + pointer_old[(yb-1)*field_width+xb-1]
                 +pointer_old[(yb)*field_width+xb+1]  +pointer_old[(yb)*field_width+xb-1] +pointer_old[(yb+1)*field_width+xb+1]
@@ -649,8 +663,7 @@ int main(int argc, char* argv[])
 		}
 	      
 	    }
-	}
-      
+	}      
     }
   
   

@@ -115,7 +115,7 @@ bool readpgm( char *filename )
       b = fgetc( fp );
       if( b == EOF )
       {
-        pprintf( "Error: Encountered EOF at [%i,%i]\n", y,x );
+        pprintf( "Error: Encountered EoF at [%i,%i]\n", y,x );
         return false;
       }
 
@@ -147,7 +147,6 @@ bool readpgm( char *filename )
   } // for y
 
   fclose( fp );
-
   pp_reset_banner();
   return true;
 }
