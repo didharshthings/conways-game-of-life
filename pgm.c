@@ -44,12 +44,10 @@ bool readpgm( char *filename )
   //char header[10];
   //int width, height, depth;
   int rv = fscanf( fp, "%6s\n%i %i\n%i\n", header, &width, &height, &depth );
-  width = 1800;
-  height = 1800; 
- if( rv != 4 )
+  if( rv != 4 )
   {
-    if(rank==0) 
-      pprintf( "Error: The file '%s' did not have a valid PGM header\n", 
+    if(rank==0)
+      pprintf( "Error: The file '%s' did not have a valid PGM header\n",
         filename );
     return false;
   }
@@ -59,14 +57,14 @@ bool readpgm( char *filename )
   // Make sure the header is valid
   if( strcmp( header, "P5") )
   {
-    if(rank==0) 
+    if(rank==0)
       pprintf( "Error: PGM file is not a valid P5 pixmap.\n" );
     return false;
   }
   if( depth != 255 )
   {
-    if(rank==0) 
-      pprintf( "Error: PGM file has depth=%i, require depth=255 \n", 
+    if(rank==0)
+      pprintf( "Error: PGM file has depth=%i, require depth=255 \n",
         depth );
     return false;
   }
@@ -77,7 +75,7 @@ bool readpgm( char *filename )
   if( width % ncols )
   {
     if( rank==0 )
-      pprintf( "Error: %i pixel width cannot be divided into %i cols\n", 
+      pprintf( "Error: %i pixel width cannot be divided into %i cols\n",
           width, ncols );
     return false;
   }
@@ -97,7 +95,7 @@ bool readpgm( char *filename )
   int start_x = local_width * my_col;
   int start_y = local_height * my_row;
 
-  pprintf( "Hosting data for x:%03i-%03i y:%03i-%03i\n", 
+  pprintf( "Hosting data for x:%03i-%03i y:%03i-%03i\n",
       start_x, start_x + local_width,
       start_y, start_y + local_height );
 
@@ -113,12 +111,6 @@ bool readpgm( char *filename )
   {
     for( int x=0; x<width; x++ )
     {
-      
-      if (x%2 == 0)
-	{ b =1;}
-      else
-      { b = 0;}
-      /*
       // Read the next character
       b = fgetc( fp );
       if( b == EOF )
@@ -127,8 +119,8 @@ bool readpgm( char *filename )
         return false;
       }
 
-      // From the PGM, black cells (b=0) are bugs, all other 
-      // cells are background 
+      // From the PGM, black cells (b=0) are bugs, all other
+      // cells are background
       if( b==0 )
       {
         b=1;
@@ -137,7 +129,6 @@ bool readpgm( char *filename )
       {
         b=0;
       }
-        */
       // If the character is local, then save it!
       if( x >= start_x && x < start_x + local_width &&
         y >= start_y && y < start_y + local_height )
