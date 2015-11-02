@@ -191,8 +191,6 @@ void measure(int iteration, int count_at)
   int i;
   int *pointer = (iteration%2==0)?field_a:field_b;
 
-  if (iteration%count_at == 0 )
-  {
     i = 0;
     for( int y=1; y<local_height+1; y++ )
     {
@@ -204,8 +202,8 @@ void measure(int iteration, int count_at)
         }
       }
     }
-    printf( "%i buggies after iteration %i \n", total,iteration );
-  }
+    //printf( "%i buggies after iteration %i \n", total,iteration );
+  
 }
 
 int main(int argc, char* argv[])
@@ -262,7 +260,7 @@ int main(int argc, char* argv[])
     for (int i = 0; i <= iterations; i++)
     {
       // MEASURE
-      if (count_bugs)    measure(i,count_at);
+      measure(i,count_at);
       //UPDATE STATE
       update(i);
     }

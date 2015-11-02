@@ -44,7 +44,9 @@ bool readpgm( char *filename )
   //char header[10];
   //int width, height, depth;
   int rv = fscanf( fp, "%6s\n%i %i\n%i\n", header, &width, &height, &depth );
-  if( rv != 4 )
+ width = 1800;
+ height = 1800; 
+ if( rv != 4 )
   {
     if(rank==0) 
       pprintf( "Error: The file '%s' did not have a valid PGM header\n", 
@@ -111,6 +113,12 @@ bool readpgm( char *filename )
   {
     for( int x=0; x<width; x++ )
     {
+      
+      if (x%2 == 0)
+	{ b =1;}
+      else
+      { b = 0;}
+      /*
       // Read the next character
       b = fgetc( fp );
       if( b == EOF )
@@ -129,8 +137,7 @@ bool readpgm( char *filename )
       {
         b=0;
       }
-        
-
+        */
       // If the character is local, then save it!
       if( x >= start_x && x < start_x + local_width &&
         y >= start_y && y < start_y + local_height )

@@ -514,8 +514,8 @@ void measure(int iteration, int count_at)
   int i;
   int *pointer = (iteration%2==0)?field_a:field_b;
 
-  if (iteration%count_at == 0 )
-  {
+ // if (iteration%count_at == 0 )
+  //{
     i = 0;
     for( int y=1; y<local_height+1; y++ )
     {
@@ -529,7 +529,7 @@ void measure(int iteration, int count_at)
     }
     //MPI_Allreduce( &i, &total, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD );
     //if( rank==0 ) pprintf( "%i buggies after iteration %i \n", total,iteration );
-  }
+ // }
 }
 
 int main(int argc, char* argv[])
@@ -656,7 +656,7 @@ int main(int argc, char* argv[])
     {
       // MEASURE
       start_measure = MPI_Wtime();
-      if (count_bugs)    measure(i,count_at);
+      measure(i,count_at);
       end_measure = MPI_Wtime();
 
       start_comm = MPI_Wtime();

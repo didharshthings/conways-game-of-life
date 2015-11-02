@@ -1,0 +1,39 @@
+Rank 2 is running on node1755
+Rank 0 is running on node1755
+[  0:000] main           : Welcome to Conway's Game of Life!
+[  0:001] main           : 
+ 
+ CHECKERBOARD distribution
+ 
+Rank 1 is running on node1755
+Rank 3 is running on node1756
+Rank 4 is running on node1756
+Rank 5 is running on node1756
+[  1:000] main           : x - [0], y-[1] 
+[  2:000] main           : x - [0], y-[2] 
+[  0:002] main           : x - [0], y-[0] 
+[  0:003] pgm:readpgm    : Opening file life.pgm
+[  4:000] main           : x - [1], y-[1] 
+[  5:000] main           : x - [1], y-[2] 
+[  3:000] main           : x - [1], y-[0] 
+Rank 6 is running on node1757
+Rank 7 is running on node1757
+Rank 8 is running on node1757
+[  7:000] main           : x - [2], y-[1] 
+[  8:000] main           : x - [2], y-[2] 
+[  6:000] main           : x - [2], y-[0] 
+[  3:001] pgm:readpgm    : Hosting data for x:600-1200 y:000-600
+[  5:001] pgm:readpgm    : Hosting data for x:600-1200 y:1200-1800
+[  4:001] pgm:readpgm    : Hosting data for x:600-1200 y:600-1200
+[  6:001] pgm:readpgm    : Hosting data for x:1200-1800 y:000-600
+[  8:001] pgm:readpgm    : Hosting data for x:1200-1800 y:1200-1800
+[  7:001] pgm:readpgm    : Hosting data for x:1200-1800 y:600-1200
+[  0:004] pgm:readpgm    : life.pgm: P5 1800 1800 255
+[  0:005] pgm:readpgm    : Hosting data for x:000-600 y:000-600
+[  1:001] pgm:readpgm    : Hosting data for x:000-600 y:600-1200
+[  2:001] pgm:readpgm    : Hosting data for x:000-600 y:1200-1800
+[  0:006] main           : time taken for update - 0.078472
+[  0:007] main           : time taken for communication - 0.000872
+[  0:008] main           : time taken for measure - 0.000000
+[  0:009] main           : total time = 0.079344
+[  0:010] main           : Terminating normally
