@@ -721,7 +721,6 @@ if (rank == 0)
   if( rank==0 )
     pprintf( "Terminating normally\n" );
 
-  PAPI_shutdown();
   MPI_Finalize();
   return 0;
 }
