@@ -697,9 +697,9 @@ int main(int argc, char* argv[])
     }
   double local_comm,local_update,local_measure;
   double global_comm, global_update, global_measure;
-//  local_comm = end_comm - start_comm;
+  //local_comm = end_comm - start_comm;
 //  local_update = end_update - start_update;
-  MPI_Barrier(comm_cart);
+  //MPI_Barrier(comm_cart);
   end_measure = MPI_Wtime();
   local_measure = end_measure - start_measure;
   //MPI_Reduce(&local_comm,&global_comm,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
