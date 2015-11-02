@@ -26,6 +26,8 @@
 #include "pprintf.h"
 #include "pgm.h"
 #include <math.h>
+#include "papi.h"
+
 
 
 enum direction //used for checkerboard distribution
@@ -514,9 +516,9 @@ void measure(int iteration, int count_at)
   int i;
   int *pointer = (iteration%2==0)?field_a:field_b;
 
- // if (iteration%count_at == 0 )
-  //{
-    i = 0;
+  if (count_at == 0) //for performance
+  {
+   i = 0;
     for( int y=1; y<local_height+1; y++ )
     {
       for( int x=1; x<local_width+1; x++ )
@@ -526,10 +528,27 @@ void measure(int iteration, int count_at)
           i++;
         }
       }
+    } 
+  }
+  else
+  {
+    if (iteration%count_at == 0 )
+    { 
+      i = 0;
+      for( int y=1; y<local_height+1; y++ )
+      {
+        for( int x=1; x<local_width+1; x++ )
+        {
+          if( pointer[ y * field_width + x ] )
+          {
+            i++;
+          }
+        }
+      }
+      MPI_Allreduce( &i, &total, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD );
+      if( rank==0 ) pprintf( "%i buggies after iteration %i \n", total,iteration );
     }
-    //MPI_Allreduce( &i, &total, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD );
-    //if( rank==0 ) pprintf( "%i buggies after iteration %i \n", total,iteration );
- // }
+  }
 }
 
 int main(int argc, char* argv[])
@@ -554,6 +573,11 @@ int main(int argc, char* argv[])
   int offset;
   int write_from;
   int write_to;
+
+  //PAPI
+  float real_time, proc_time, mflops;
+  long long flpins;
+  int retval;
 
 
   // parse args
@@ -650,16 +674,19 @@ int main(int argc, char* argv[])
       return 1;
     }
 
-    double start_measure,end_measure,start_comm,end_comm,start_update,end_update;
-    MPI_Barrier(comm_cart); 
+   // double start_measure,end_measure,start_comm,end_comm,start_update,end_update;
+    //MPI_Barrier(comm_cart); 
+    if((retval=PAPI_flops( &real_time, &proc_time, &flpins, &mflops))<PAPI_OK)
+    test_fail(__FILE__, __LINE__, "PAPI_flops", retval);
+
     for (int i = 0; i <= iterations; i++)
     {
       // MEASURE
-      start_measure = MPI_Wtime();
-      measure(i,count_at);
-      end_measure = MPI_Wtime();
+     // start_measure = MPI_Wtime();
+      if (count_bugs)    measure(i,count_at);
+      //end_measure = MPI_Wtime();
 
-      start_comm = MPI_Wtime();
+      //start_comm = MPI_Wtime();
       if(!distribution) //slice
       {
         sync(i);
@@ -668,15 +695,16 @@ int main(int argc, char* argv[])
       {
         sync_checkerboard(i,dims,source_ranks,dest_ranks,comm_cart);
       }
-      end_comm = MPI_Wtime();
+      //end_comm = MPI_Wtime();
 
       //WRITE FILE
       if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
       //UPDATE STATE
-      start_update = MPI_Wtime();
+      //start_update = MPI_Wtime();
       update(i);
-      end_update = MPI_Wtime();
+      //end_update = MPI_Wtime();
     }
+  /*
   double local_comm,local_update,local_measure;
   double global_comm, global_update, global_measure;
   local_comm = end_comm - start_comm;
@@ -685,13 +713,19 @@ int main(int argc, char* argv[])
   MPI_Reduce(&local_comm,&global_comm,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
   MPI_Reduce(&local_update,&global_update,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
   MPI_Reduce(&local_measure,&global_measure,1,MPI_DOUBLE,MPI_SUM,0,comm_cart); 
+*/
+if((retval=PAPI_flops( &real_time, &proc_time, &flpins, &mflops))<PAPI_OK)
+    test_fail(__FILE__, __LINE__, "PAPI_flops", retval);
 
 if (rank == 0)
   {
-    pprintf("time taken for update - %f\n", global_update);
-    pprintf("time taken for communication - %f\n", global_comm);
-    pprintf("time taken for measure - %f\n", global_measure);
-    pprintf("total time = %f\n",global_update + global_comm + global_measure);
+//    pprintf("time taken for update - %f\n", global_update);
+  //  pprintf("time taken for communication - %f\n", global_comm);
+   // pprintf("time taken for measure - %f\n", global_measure);
+    //pprintf("total time = %f\n",global_update + global_comm + global_measure);
+  printf("Real_time:\t%f\nProc_time:\t%f\nTotal flpins:\t%lld\nMFLOPS:\t\t%f\n",
+  real_time, proc_time, flpins, mflops);
+ 
   }
   // Free the fields
   if( field_a != NULL ) free( field_a );
@@ -700,6 +734,8 @@ if (rank == 0)
   // Finalize MPI and terminate
   if( rank==0 )
     pprintf( "Terminating normally\n" );
+
+  PAPI_shutdown();
   MPI_Finalize();
   return 0;
 }

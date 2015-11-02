@@ -44,8 +44,8 @@ bool readpgm( char *filename )
   //char header[10];
   //int width, height, depth;
   int rv = fscanf( fp, "%6s\n%i %i\n%i\n", header, &width, &height, &depth );
- width = 1800;
- height = 1800; 
+  width = 1800;
+  height = 1800; 
  if( rv != 4 )
   {
     if(rank==0) 
