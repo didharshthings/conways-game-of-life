@@ -673,11 +673,8 @@ int main(int argc, char* argv[])
     for (int i = 0; i <= iterations; i++)
     {
       // MEASURE
-     // start_measure = MPI_Wtime();
       if (count_bugs)    measure(i,count_at);
-      //end_measure = MPI_Wtime();
 
-      //start_comm = MPI_Wtime();
       if(!distribution) //slice
       {
         sync(i);
@@ -686,32 +683,22 @@ int main(int argc, char* argv[])
       {
         sync_checkerboard(i,dims,source_ranks,dest_ranks,comm_cart);
       }
-      //end_comm = MPI_Wtime();
 
       //WRITE FILE
       //if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
       //UPDATE STATE
-      //start_update = MPI_Wtime();
       update(i);
-      //end_update = MPI_Wtime();
     }
 
-  double local_comm,local_update,local_measure;
-  double global_comm, global_update, global_measure;
-  //local_comm = end_comm - start_comm;
-  //local_update = end_update - start_update;
+  double local_measure;
+  double global_measure;
   end_measure = MPI_Wtime();
   local_measure = end_measure - start_measure;
-  //MPI_Reduce(&local_comm,&global_comm,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
-  //MPI_Reduce(&local_update,&global_update,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
-  MPI_Reduce(&local_measure,&global_measure,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
+  MPI_Reduce(&local_measure,&global_measure,1,MPI_DOUBLE,MPI_MAX,0,comm_cart);
 
 if (rank == 0)
   {
-    //pprintf("time taken for update - %f\n", global_update);
-    //pprintf("time taken for communication - %f\n", global_comm);
     pprintf("time taken for measure - %f\n", global_measure);
-    //pprintf("total time = %f\n",global_update + global_comm + global_measure);
   }
   // Free the fields
   if( field_a != NULL ) free( field_a );
