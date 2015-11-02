@@ -528,12 +528,12 @@ void measure(int iteration, int count_at)
           i++;
         }
       }
-    } 
+    }
   }
   else
   {
     if (iteration%count_at == 0 )
-    { 
+    {
       i = 0;
       for( int y=1; y<local_height+1; y++ )
       {
@@ -573,12 +573,6 @@ int main(int argc, char* argv[])
   int offset;
   int write_from;
   int write_to;
-
-  //PAPI
-  float real_time, proc_time, mflops;
-  long long flpins;
-  int retval;
-
 
   // parse args
   if (argc == 8) // will fix the parsing later
@@ -620,7 +614,6 @@ int main(int argc, char* argv[])
   pp_set_banner( "main" );
   if( rank==0 )
     pprintf( "Welcome to Conway's Game of Life!\n" );
-
 
     if (!distribution)
     {
@@ -674,11 +667,9 @@ int main(int argc, char* argv[])
       return 1;
     }
 
-   // double start_measure,end_measure,start_comm,end_comm,start_update,end_update;
-    //MPI_Barrier(comm_cart); 
-    if((retval=PAPI_flops( &real_time, &proc_time, &flpins, &mflops))<PAPI_OK)
-    test_fail(__FILE__, __LINE__, "PAPI_flops", retval);
-
+    double start_measure,end_measure,start_comm,end_comm,start_update,end_update;
+    MPI_Barrier(comm_cart);
+    start_measure = MPI_Wtime();
     for (int i = 0; i <= iterations; i++)
     {
       // MEASURE
@@ -704,28 +695,23 @@ int main(int argc, char* argv[])
       update(i);
       //end_update = MPI_Wtime();
     }
-  /*
   double local_comm,local_update,local_measure;
   double global_comm, global_update, global_measure;
-  local_comm = end_comm - start_comm;
-  local_update = end_update - start_update;
-  local_measure = end_measure - start_measure; 
-  MPI_Reduce(&local_comm,&global_comm,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
-  MPI_Reduce(&local_update,&global_update,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
-  MPI_Reduce(&local_measure,&global_measure,1,MPI_DOUBLE,MPI_SUM,0,comm_cart); 
-*/
-if((retval=PAPI_flops( &real_time, &proc_time, &flpins, &mflops))<PAPI_OK)
-    test_fail(__FILE__, __LINE__, "PAPI_flops", retval);
+//  local_comm = end_comm - start_comm;
+//  local_update = end_update - start_update;
+  MPI_Barrier(comm_cart);
+  end_measure = MPI_Wtime();
+  local_measure = end_measure - start_measure;
+  //MPI_Reduce(&local_comm,&global_comm,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
+  //MPI_Reduce(&local_update,&global_update,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
+  MPI_Reduce(&local_measure,&global_measure,1,MPI_DOUBLE,MPI_SUM,0,comm_cart);
 
 if (rank == 0)
   {
 //    pprintf("time taken for update - %f\n", global_update);
   //  pprintf("time taken for communication - %f\n", global_comm);
-   // pprintf("time taken for measure - %f\n", global_measure);
+   pprintf("time taken for measure - %f\n", global_measure);
     //pprintf("total time = %f\n",global_update + global_comm + global_measure);
-  printf("Real_time:\t%f\nProc_time:\t%f\nTotal flpins:\t%lld\nMFLOPS:\t\t%f\n",
-  real_time, proc_time, flpins, mflops);
- 
   }
   // Free the fields
   if( field_a != NULL ) free( field_a );
