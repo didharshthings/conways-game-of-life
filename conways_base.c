@@ -689,7 +689,7 @@ int main(int argc, char* argv[])
       //end_comm = MPI_Wtime();
 
       //WRITE FILE
-      if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
+      //if (i <= write_to && i >= write_from) write_to_file(input_file, i, offset);
       //UPDATE STATE
       //start_update = MPI_Wtime();
       update(i);
